@@ -1,0 +1,135 @@
+---
+title: "Obligatory_Task_Marius_Arnesen"
+author: "Marius_Arnesen"
+date: "17 9 2019"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(httr)
+library(rlist)
+library(rjstat)
+library(dplyr)
+library(zoo)
+library(lubridate)
+library(ggplot2)
+library(corrplot)
+```
+
+#Task 1. What county (on average) has the highest positive and negative difference in price?
+```{r,} 
+url1 <- "http://data.ssb.no/api/v0/dataset/95274.json?lang=no"
+
+d.tmp <- GET(url1)
+
+sbtabell <- fromJSONstat(content(d.tmp, "text"))
+
+byCity <- sbtabell [[1]]
+
+
+```
+
+```{r,}
+url2 <- "http://data.ssb.no/api/v0/dataset/95276.json?lang=no"
+b.tmp <- GET(url2)
+
+sbtabel2 <- fromJSONstat(content(d.tmp, "text"))
+
+byCountry <- sbtabel2 [[1]]
+
+```
+
+```{r,include=FALSE}
+alldata <- rbind(byCity, byCountry)
+
+alldata <- rename(alldata, "Region"="region" , "Date"="måned" , "Variable"="statistikkvariabel", "Value"="value")
+
+alldata$Date <- as.Date(as.yearmon(alldata$Date, "%YM%m"))
+
+alldata$Variable <- recode(alldata$Variable, "Kapasitetsutnytting av senger (prosent)" = "Beds percentage capacity utilization", "Kapasitetsutnytting av rom (prosent)" = 	
+"Rooms percentage capacity utilization", "Pris per rom (kr)" = "Price per room")
+
+
+roomprice <- alldata [seq(3, nrow(alldata), 3), ]
+
+diffcounty <- roomprice %>%
+  group_by(Region) %>%
+  summarise(averageprice = mean(Value[which(Value!=0.0)]))
+
+maxdiff <- max(diffcounty$averageprice)
+which.max(diffcounty$averageprice)
+
+mindiff <- min(diffcounty$averageprice)
+which.min(diffcounty$averageprice)
+
+```
+
+```{r}
+paste("The county that has the lowest room price is Oppland, with an average price of", mindiff , "NOK. The county whit the highest room price is Svalbard, with an average price of", maxdiff, "NOK" )
+```
+
+
+#Task 2, Identify the year and county with the highest positive and negative difference.
+```{r, include=FALSE}
+diffyear <- roomprice %>%
+  mutate(Year=year(Date)) %>%
+  filter(Value > 0.0) %>%
+  group_by(Region, Year) %>%
+  summarise(averageprice =mean(Value, na.rm = TRUE))
+
+maximum <- max(diffyear$averageprice)
+which.max(diffyear$averageprice)
+
+minimum <- min(diffyear$averageprice)
+which.min(diffyear$averageprice)
+
+```
+
+```{r}
+paste("The county that has the lowest room price is Hedmark, with an average price of", minimum , "NOK, in the year 1992. The county whit the highest price is Svalbard, with an average price of", maximum, "NOK, in the year 2019" )
+```
+
+
+#Task 3, Make a plot of the monthly price difference for Troms county from 1999 until today.
+```{r, include=FALSE}
+difftroms <- roomprice %>%
+  filter(Region == "Troms - Romsa", Date >= "1999-01-01" & Date <= "2019-07-01") %>% group_by(Date)
+
+difftromsPlot <- ggplot(difftroms, aes(x=Date, y=Value)) + geom_point() + geom_line() + ggtitle("Price pr. room from 99' to 19'")
+
+```
+
+```{r}
+print(difftromsPlot)
+
+paste("As we can see from the graf, the price has gradually increased over the last 10 years")
+```
+
+
+#Task 4, Is there any correlation between room capacity and price since January 2010?
+```{r, include=FALSE}
+correlation1 = alldata[seq(2, nrow(alldata), 3), ]
+
+correlation1 <- correlation1 %>%
+  filter(Date >= "2010-01-01" & Date <= "2019-07-01") %>%
+  group_by(Value)
+
+correlation2 <- roomprice %>%
+  filter(Date >= "2010-01-01" & Date <= "2019-07-01") %>%
+  group_by(Value)
+
+x <- correlation1 [4]
+y <- correlation2 [4]
+
+correlation <- cor(x,y)
+
+correlation
+
+```
+
+```{r}
+paste("When we run the code we can see that we get a correlation equal to", correlation, ".As this number is close to 1, means that there is somewhat of a correlation between room capacity and prices since January 2010.")
+```
+
